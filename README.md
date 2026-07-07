@@ -29,6 +29,7 @@
 - [💡 Method and Model Changes](#-method-and-model-changes)
 - [⚙️ Installation](#️-installation)
 - [🚀 Usage](#-usage)
+- [🗂️ Batch Processing](#️-batch-processing)
 - [✍️ Hand-drawn Model](#️-decimer---hand-drawn-model)
 - [📄 Citation](#-citation)
 - [🙏 Acknowledgements](#-acknowledgements)
@@ -96,6 +97,83 @@ from DECIMER import predict_SMILES
 image_path = "path/to/your/chemical/masterpiece.jpg"
 SMILES = predict_SMILES(image_path)
 print(f"🎉 Decoded SMILES: {SMILES}")
+```
+
+---
+
+## 🗂️ Batch Processing
+
+`decimer_batch.py` converts an entire directory of chemical structure images to SMILES in one command, writing results to a CSV file. It includes structured logging, pre-flight image validation, configurable retries, and safe Ctrl-C handling that preserves partial results.
+
+### Quick start
+
+```bash
+conda activate DECIMER
+
+# Process all images in a folder; CSV saved alongside images
+python decimer_batch.py ~/structures/
+
+# Specify output path
+python decimer_batch.py ~/structures/ -o ~/results/smiles.csv
+
+# Write a rotating log file as well
+python decimer_batch.py ~/structures/ -o ~/results/smiles.csv --log ~/logs/decimer.log
+```
+
+### All options
+
+| Flag | Default | Description |
+|---|---|---|
+| `image_dir` | *(required)* | Directory containing chemical structure images |
+| `-o / --output` | `<image_dir>/decimer_results_<timestamp>.csv` | Output CSV path |
+| `-l / --log` | *(none)* | Rotating log file (5 MB × 3 backups) |
+| `--ext` | `png jpg jpeg webp tif tiff` | Limit to specific extensions |
+| `-r / --recursive` | off | Search subdirectories recursively |
+| `--retries N` | `1` | Retry failed images up to N times |
+| `--min-size BYTES` | `1024` | Skip files smaller than this (likely corrupt) |
+| `-v / --verbose` | off | Show DEBUG-level messages on the console |
+
+### Output CSV columns
+
+| Column | Description |
+|---|---|
+| `filename` | Path relative to `image_dir` |
+| `smiles` | Predicted SMILES string (empty on failure/skip) |
+| `status` | `ok` \| `skipped: <reason>` \| `error: <reason>` |
+| `elapsed_s` | Wall-clock seconds for that image |
+| `timestamp` | ISO 8601 timestamp of completion |
+
+Results are flushed to disk after every image — a crash or Ctrl-C mid-run preserves all completed rows.
+
+### Logging
+
+Without `--log`, only the console is used (INFO level by default). With `--log <file>`, a rotating file handler is added at DEBUG level, capturing full tracebacks for failed images:
+
+```bash
+# Verbose console output + persistent log file
+python decimer_batch.py ~/structures/ --log ~/logs/decimer.log -v
+```
+
+Log format in file: `YYYY-MM-DD HH:MM:SS  LEVEL     message`
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | All images succeeded |
+| `1` | Configuration or startup error |
+| `2` | One or more images failed inference |
+| `130` | Interrupted by Ctrl-C |
+
+Non-zero exit codes make the script composable in shell pipelines and CI workflows.
+
+### Running the tests
+
+The test suite covers all error-handling paths and logging behaviour without loading the DECIMER model (all inference is mocked), so it runs in under a second:
+
+```bash
+conda activate DECIMER
+pytest tests/test_decimer_batch.py -v
 ```
 
 ---
